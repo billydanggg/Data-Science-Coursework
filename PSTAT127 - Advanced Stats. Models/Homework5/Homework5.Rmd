@@ -1,0 +1,172 @@
+---
+title: "PSTAT127 Homework 5"
+author: "Billy Dang"
+date: "2024-11-12"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem 1
+
+The dataset **wbca** (in the R library *faraway*) comes from a study of breast cancer in Wisconsin. The data represent 681 cases of potentially cancerous tumors of which 238 are actually malignant. At the time of this study, assessment of whether a tumor is malignant usually involved an invasive surgical procedure. The purpose of this study was to determine whether a new procedure (i.e., new at the time of this study) called fine needle aspiration (which draws only a small sample of tissue) could be effective in determining tumor status.
+
+### 1.a
+Fit a logistic regression with **CLASS** as the response and the other nine variables as predictors using glm in R. Report the residual deviance and associated degrees of freedom.
+
+```{r}
+library(faraway)
+data(wbca)
+
+fit <- glm(Class ~., data = wbca, family = binomial)
+summary(fit)
+```
+
+-- The residual deviance is 89.464 with 680 degrees of freedom.
+
+### 1.b
+Use AIC as the criterion to determine the best subset of variables if you only consider models obtained by dropping one explanatory variable out at a time. (Read the help file for the **step** function.)
+
+```{r pressure, echo=FALSE}
+full_model <- glm(Class ~ ., data = wbca, family = binomial)
+
+mlr_backwards_elim <- step(full_model, direction = "backward")
+
+
+summary(mlr_backwards_elim)
+
+cat("AIC of the best model using backwards elimination based on AIC criterion:", AIC(mlr_backwards_elim), "\n")
+
+```
+
+### 1.c
+Use the reduced model in step 1b to estimate the probability of malignancy for a new patient with predictor variables [1, 1, 3, 2, 1, 1, 4, 1, 1]. Hint: use function "predict.glm" with the appropriate choice of "type".
+
+```{r}
+new_patient <- data.frame(
+  Adhes = 1,
+  BNucl = 1,
+  Chrom = 3,
+  Epith = 2,
+  Mitos = 1,
+  NNucl = 1,
+  Thick = 4,
+  UShap = 1,
+  USize = 1
+)
+
+predicted_probability <- predict.glm(mlr_backwards_elim, newdata = new_patient, type = "response")
+
+cat("Estimated probability of malignancy for the new patient:", predicted_probability, "\n")
+
+```
+
+### 1.d
+Suppose that a cancer is classified as benign if p \> .5 and malignant if p \< .5. Compute the number of errors of both types that will be made if this method is applied to the current data with the reduced model.
+
+```{r}
+predicted_probabilities <- predict.glm(mlr_backwards_elim, newdata = wbca, type = "response")
+
+predicted_classes <- ifelse(predicted_probabilities > 0.5, "benign", "malignant")
+
+actual_classes <- ifelse(wbca$Class == 1, "malignant", "benign")  
+
+false_positives <- sum(predicted_classes == "malignant" & actual_classes == "benign")
+false_negatives <- sum(predicted_classes == "benign" & actual_classes == "malignant")
+
+cat("False Positives (Type I Errors):", false_positives, "\n")
+cat("False Negatives (Type II Errors):", false_negatives, "\n")
+```
+
+## Problem 2
+A study was run to investigate whether a statistical model could be used to estimate the probability of a household purchasing a new car within a 12-month period, based both on the income of the household and on the age of the oldest car belonging to the household at the start of that 12 month period.
+
+Data was collected from a random sample of *n* households. Each household was asked the age of their oldest automobile (variable labelled "age" measured in years), and their income (variable labelled "income"). One year later, a follow-up visit asked if the household had brought a new car in that 12 month period (variable "purchase" - coded as "1" if they had brought a new car, and "0" otherwise).
+
+Two models were fitted using R.
+
+```{r, warning=FALSE}
+car.dat <- read.table("data/car.txt", header=T)
+attach(car.dat)
+
+fit1 <- glm(purchase ~ income + age, family=binomial(link = logit))
+summary(fit1)
+```
+
+### 2.a
+
+What is the value of n (i.e., how many households are in our sample)?
+
+-- There are 33 households in the sample (null deviance df = n - 1).
+
+### 2.b
+
+Write down model "fit1" and the assumptions of this model. Define all notation that you use.
+
+-- The logistic regression model "fit1" can be written as: $$logit(P(purchase_i = 1)) = \beta_0 + \beta_1 * income_i + \beta_2 * age_i$$
+
+where:
+
+-   $P(purhcase_i = 1)$ is the probability that household i purchased a new car within the 12 month period.
+
+-   $\beta_0$ is the intercept term
+
+-   $\beta_1$ is the coefficient for household income
+
+-   $\beta_2$ is the coefficient for the age of the oldest car in the household.
+
+-   $income_i$ represent the income of house hold i (where i is some value n = 1, 2, ... ,33)
+
+-   $age_i$ represents the age of the oldest car for household i
+
+And assumptions include linearity in log-odds, independence of observations, no perfect multicollinearity.
+
+### 2.c
+
+```{r}
+fit2 <- update(fit1, .~.-age)
+summary(fit2)
+```
+
+```{r}
+round( vcov(fit2), digits = 5)
+```
+
+Load R library "MASS" and read the help file for "confint.glm". The last example in this help file has a glm for the bud worm data that you can run to practice to learn the R syntax.
+
+```{r}
+library(MASS)
+help("confint.glm")
+```
+
+Now use the "confint.glm" command to obtain a 99% confidence interval estimate for parameter $\beta_{income}$, assuming model "fit2" holds. Include your code and confidence interval results within your answer file.
+
+```{r}
+confint(fit2, parm = "income", level = 0.99)
+```
+
+### 2.d(i)
+
+Explain why I receive the warning message below when I run the following anova command in R.
+
+```{r}
+anova(fit2, fit1, test = "F")
+```
+-- The following error message is a result of the logistic regression model, where the response variable is binary being combined with an F-test that is generally used in the context of linear models (i.e. OLS regression) where the residuals are assumed to be normally distributed.
+
+### 2.d(ii)
+
+How should I modify this anova command in order to obtain the p-value for the nested model hypothesis test that we studied in class?
+
+-- To test the hypothesis $H_0:$model "fit2" (purchase ~ income) versus $H_A:$ model "fit1" (purchase ~ income + age), we need to perform a likelihood ratio test for the nested models. In R, we can use the anova() function with test = "Chisq" to obtain the Chi-squared test for nested model comparison. This is the appropriate test for comparing models in logistic regression (with a binomial family).
+
+```{r}
+# Perform the likelihood ratio test using anova with test = "Chisq"
+anova_result <- anova(fit2, fit1, test = "Chisq")
+
+# Display the results
+print(anova_result)
+```
+-- Since the p-value is greater than $\alpha = 0.01$ with a value of .1059, we do not reject $H_0$ which suggests that adding age does not significantly improve the model fit at the 1% significance level.

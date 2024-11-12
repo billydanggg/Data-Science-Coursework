@@ -1,0 +1,169 @@
+---
+title: "PSTAT127 | Fall 2024 | Homework 1"
+author: "Billy Dang"
+date: "2024-10-07"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo = TRUE, warning = FALSE, message = FALSE}
+library(dplyr)
+library(tinytex)
+library(tidyverse)
+library(ggplot2)
+library(ggthemes)
+```
+
+## Question 1
+
+### Part 1
+Plot the data with alcohol on the vertical axis, and tobacco on the horizontal axis (scatterplot). Present your code here:
+```{r, fig.dim=c(5,3), fig.align = 'center'}
+#Create data frame to prep for plotting 
+
+spending_data <- data.frame(
+  region = c("North", "Yorkshire", "Northeast", "East Midlands", "West Midlands", "East Anglia", "Southeast", "Southwest", "Wales", "Scotland", "Northern Ireland"),
+  alcohol = c(6.47, 6.13, 6.19, 4.89, 5.63, 4.52, 5.89, 4.79, 5.27, 6.08, 4.02),
+  tobacco = c(4.03, 3.76, 3.77, 3.34, 3.47, 2.92, 3.20, 2.71, 3.53, 4.51, 4.56)
+)
+
+#Create scatterplot 
+ggplot(spending_data, 
+       aes(x = tobacco, y = alcohol)) + geom_point(color = "#D51E80")
+
+```
+
+### Part B
+Fit a simple Gaussian homoskedastic linear regression of alcohol spending on tobacco spending (include both an intercept & slope) and add the fitted line to the scatter plot produced above. 
+```{r}
+#Fitting the model and examining results
+linear_model <- lm(alcohol ~ tobacco, data = spending_data)
+```
+
+```{r}
+ggplot(spending_data, 
+       aes(x = tobacco, y = alcohol)) + 
+  geom_point(color = "#D51E80") +
+  geom_smooth(method = 'lm', se = FALSE)
+```
+
+### Part C
+Write down corresponding model and assumptions, clearly defining notation. You may write this model in the way you did in PSTA 126 - using additive error with assumptions on the random variables. (**The underlying model & assumptions not the resulting numeric equation for the fitted values**)
+
+
+$H_0: \beta_1 = 0$ - Tobacco spending does not have a significant effect on  alcohol spending.
+
+$H_1: \beta_1 \neq 0$ - Tobacco spending does have a significant effect on alcohol spending.
+
+$Y_i$ is the dependent (response) variable, in this case, the "Alcohol" spending for observations i.
+
+$X_i$ is the independent (predictor) variable, which is the "Tobacco" spending for observations i.
+
+$\beta_0$ is the intercept, which represents the expected tobacco spending when alcohol spending (X) is 0
+
+$\beta_1$ is the slope coefficient, representing the change in Y for a one-unit change in X (Alcohol spending)
+
+$\epsilon$ is the error term for observation i
+
+The formula of our simple linear regression model is shown below:
+
+$$Y_i = \beta_0 + \beta_1X_1 + \epsilon_i,     i = 1, 2, ..., n$$
+### Assumptions:
+- $e_i$ are uncorrelated
+- $e_i$ aka the errors are independent of each other
+- $Var(e_i) = \sigma^2$
+- $E[e_i] = 0$
+
+
+### Part D
+```{r}
+summary(linear_model)
+```
+$H_0: \beta_1 = 0$ - Tobacco spending does not have a significant effect on  alcohol spending.
+
+$H_1: \beta_1 \neq 0$ - Tobacco spending does have a significant effect on alcohol spending.
+
+t = .688, 
+t(.01,2,9) = 3.249
+Reject $H_0$ if |t| > 3.2498
+p = .5087 > alpha
+
+1. We fail to reject the null hypothesis in favor of the idea that the effect of tobacco spend on alcohol is not significant
+
+$H_0: \beta_1 = 0$ - The model is not significant
+
+$H_1: \beta_1 \neq 0$ - Not the null hypothesis
+
+F = .4735
+F(.01,1,9) = 11.26
+Reject $H_0$ if F > 11.26
+p = .5027 > alpha
+
+2. We fail to reject the null hypothesis as there is not enough evidence to suggest the model is significant 
+
+### Part E
+Obtain the leverage values using any approach you studied in PSTAT 126 (Make sure you review the formulae for the future, and review how leverage values are used in linear model diagnostics)
+
+```{r}
+#Where values greater than (2p/n) are considered leverage values
+leverage <- hatvalues(linear_model)
+print(leverage)
+```
+
+### Part F
+Calculate the Cook's distance measures, and identify which region has the highest Cook's distance value.
+
+```{r}
+cooks_list = cooks.distance(linear_model)
+print(cooks_list)
+
+```
+The regions with the highest Cook's distance is *Northern Ireland* with a Cook's distance of ~2.20865.
+
+### Part G
+What do the Cook's distances indicate in this data set, i.e. do any points seem potentially influential requiring further investigation?
+
+The Cook's distances indicate that there is a potentially influential point within the dataset, particularly the 11th one where alcohol spending was only ~4 when tobacco spending was ~4.5
+
+### Part H
+Can you think of a brief geographic reason that might explain what you are seeing, and any further research that you would do about geographic variation in smoking and drinking practices?
+
+There may be significant variation due to Northern Ireland being separated from the rest of the UK, leading to difference in smoking and drinking practices (and presumably others as well). Other influences on this variation can be further explored by examining socioeconomic data / lifestyle studies.
+
+### Part I
+Comment on the sensitivity of your regression coefficients to the point with highest Cook's distance measure. (Fit the model both with and without that point, and comment on how your coefficients, fitted values, and hypothesis test decisions change.)
+
+```{r}
+#remove influential point 
+spending_data_2 <- data.frame(
+  region = c("North", "Yorkshire", "Northeast", "East Midlands", "West Midlands", "East Anglia", "Southeast", "Southwest", "Wales", "Scotland"),
+  alcohol = c(6.47, 6.13, 6.19, 4.89, 5.63, 4.52, 5.89, 4.79, 5.27, 6.08),
+  tobacco = c(4.03, 3.76, 3.77, 3.34, 3.47, 2.92, 3.20, 2.71, 3.53, 4.51)
+)
+
+linear_model_2 <- lm(alcohol ~ tobacco, data = spending_data_2)
+```
+```{r}
+summary(linear_model)
+summary(linear_model_2)
+```
+Our model was extremely sensitive to the point with the highest Cook's distance measure as the intercept dropped by 2 units after removing Northern Ireland, meanwhile the slope increase by ~.7 as well. In the full model with Northern Ireland, the smaller slope implies that tobacco spending has a weaker effect on alcohol spending. Additionally, the removal of Northern Ireland changes the decision of failing to reject the null hypothesis (no relationship) to rejecting the null hypothesis.
+
+### Part J
+Plot the observations with your fitted line superimposed for each of these fits from the previous part. The plot for each of these fits may be a separate panel or on the same panel. If using two panels, specify R options to control the axis ranges of the adjacent panels to be the same so you can compare the lines.
+
+```{r}
+ggplot(spending_data, aes(x = tobacco, y = alcohol)) +
+  geom_point() +
+  geom_smooth(method = 'lm', color = 'blue', se = FALSE) +
+  geom_smooth(data = spending_data_2, method = 'lm', color = 'red', se = FALSE)
+```
+
+
+
