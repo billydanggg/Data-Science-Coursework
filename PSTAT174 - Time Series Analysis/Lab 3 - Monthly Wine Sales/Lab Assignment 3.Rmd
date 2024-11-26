@@ -1,0 +1,139 @@
+---
+title: 'Time Series Lab 3: Monthly Wine Sales Australia'
+author: "Billy Dang"
+date: "2024-11-08"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## PSTAT 174/274 Fall 2024 – Lab Assignment 3
+
+Today, we'll be working with a monthly wine sales dataset from Australia. We'll start by reading in the file:
+
+```{r}
+getwd()
+
+wine.csv = read.table("data/monthly-australian-wine-sales-th.csv", sep = ",", header = FALSE, skip = 1, nrows = 187)
+
+colnames(wine.csv) <- c('Month', 'Sales')
+```
+Now let's create a time-series object and plot it:
+
+```{r}
+wine <- ts(wine.csv$Sales, start = c(1980, 1), frequency = 12)
+ts.plot(wine, main = 'Wine-Sales-Over-Time')
+```
+## Questions | Part 1
+Based on this time series, we can see that the data appears to be increasing over time, the data variability changes over time, and that there appears to be seasonality. Let's explore how to deal with this below:
+
+First, we'll try a simple differencing and examine what it gives us. If $X_t$ represents our wine sales, differencing a series creates a new time series $Y_t = \nabla X_t = X_t - X_{t-1}$. We'll create a difference series, plot that, and plot a line through 0 so we can see if we're close to de-trending.
+
+
+```{r}
+diff_wine <- diff(wine)
+
+plot(diff_wine, main='Differenced Wine Sales', ylab='Differenced Sales', xlab='Time')
+abline(h = 0, col='red', lty=2)
+```
+
+```{r}
+acf(diff_wine, lag.max = 60, main='ACF of Differenced Wine Sales (Lag 60)')
+```
+Based on the ACF plot of the difference wine sales time series above, we can make a couple observations. First, we see significant correlation values within lags across the entire time series. These lags also reveal a seasonal pattern, with the presence of spikes at regular intervals (i.e. around 12, 24, etc.). This repeating pattern suggests that while differencing by 1 step removed the trend, it did not eliminate the 12-month seasonality that is inherently built into the wine sales data.
+
+```{r}
+pacf(diff_wine, lag.max = 60, main='PACF of Differenced Wine Sales (Lag 60)')
+```
+Moving onto our PACF plot, we see a couple of initial significant lags that suggest short-term dependencies in the data. However, beyond the first ~12 lags, the PACF gradually diminishes and no longer holds significance based on the confidence bands.
+
+As we have reason to believe that there is a 12-month cycle to sales, we'll difference the series again, but for 12 steps this time. We'll then plot the time-series, the ACF, and the PACF.
+```{r}
+#Second differencing (seasonal differencing with lag of 12)
+diff_wine_12 <- diff(diff_wine, lag = 12)
+
+plot(diff_wine_12, main='Twice-Differenced Wine Sales (Seasonal Differencing)', ylab='Differenced Sales', xlab='Time')
+abline(h = 0, col='red', lty=2)
+```
+
+```{r}
+acf(diff_wine_12, lag.max = 60, main='ACF of Twice-Differenced Wine Sales (Lag 60)')
+```
+
+```{r}
+pacf(diff_wine_12, lag.max = 60, main='PACF of Twice-Differenced Wine Sales (Lag 60)')
+
+```
+## Questions | Part 2
+
+```{r}
+library(astsa)
+library(forecast)
+```
+
+For this problem, we will be looking at the procedure and steps for fitting ARIMA(p, d, q) models to time series data. We consider the gnp data from the astsa package. 
+
+First, produce a time series plot of the gnp data using the function ts.plot. Examine if the data is stationary, if there is any evidence of trends or seasonality, and propose any steps to obtain stationary data.
+
+```{r}
+ts.plot(gnp, main = "Time Series Plot of GNP", ylab = "GNP", xlab = "Time")
+```
+The data is *NOT* stationary as we see a clear upward trend over time which makes sense for a value that measure the total value of all goods and serviced produced by a country's residents and business over time. While the data does not show any signs of seasonality, the claim of not stationary holds true. For the following data, we can obtain stationary by taking the logarithm / difference of the time series.
+
+Next we'll take the log differences of the data and produce a second time series plot. We'll examine what impact this has on the time series and whether or not the new time series now appears stationary.
+
+```{r}
+gnp_log <- log(gnp)
+gnp_log_diff <- diff(gnp_log)
+
+ts.plot(gnp_log_diff, main = "Log-Differenced GNP Data", ylab = "Log-Differenced GNP", xlab = "Time")
+```
+Based on the graph above, the log-difference transformation has seems to stabilized the time series around a constant mean by removing the upward-trend seen in the previous plot. Additionally, the series' variance seems to have been stabilized a bit as well.
+
+Now, we'll produce an ACF plot and a PACF plot of the transformed data, and examine the results.
+
+```{r}
+acf2(gnp_log_diff, main = "ACF and PACF of Log-Differenced GNP Data")
+```
+Based on the ACF plot, we see a strong initial spike at lag 1, which gradually decays to zero and holds no sustained significance after lag 2 (except once at the 5th lag). The PACF also shows a significant spike at lag 1, but drops off sharply after lag 1.
+
+```{r}
+ma.model <- Arima(gnp_log_diff, order = c(0, 0, 2))
+
+summary(ma.model)
+```
+After fitting out MA(2) model, we see $\theta_1$ is .3028 with a SE of .0654, and $\theta_2$ is .2035 with a SE of .0644.
+
+
+We'll evaluate the fit of our model by producing a plot of the residuals as well as an ACF plot. 
+
+```{r}
+plot(ma.model$residuals, main = "Residuals of MA(2) Model", ylab = "Residuals", xlab = "Time")
+abline(h = 0, col = "red", lty = 2)
+```
+
+```{r}
+acf(ma.model$residuals, main = "ACF of Residuals of MA(2) Model")
+```
+The residual plot and ACF of the residuals indicate that the MA(2) model is a good fit for the log-differenced GNP data. This is shown by how the residuals fluctuated around zero with any clear patterns or trends over time, indicated that the model has likely captured most of the structure in the data. Additionally, the absence of significant auto correlations within the residuals indicates it behaves like white noise, which means the model has captured the main patterns in the data well and mainly leaves behind white noise.
+
+Finally, we'll produce a plot of the original transformed data series with another fitted model values over-layed in different colors.
+
+```{r}
+ar.model <- Arima(gnp_log_diff, order = c(1, 0, 0))
+
+
+plot(gnp_log_diff, main = "Original Log-Differenced GNP Data with Fitted Model Values",
+     ylab = "Log-Differenced GNP", xlab = "Time", col = "black", type = "l")
+
+
+lines(ma.model$fitted, col = "red", lwd = 2, lty = 2)
+lines(ar.model$fitted, col = "blue", lwd = 2, lty = 3)
+
+legend("topright", legend = c("Original Data", "MA(2) Fitted", "AR(1) Fitted"),
+       col = c("black", "red", "blue"), lty = c(1, 2, 3), lwd = 2)
+```

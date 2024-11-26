@@ -1,0 +1,139 @@
+---
+title: "Time Series Lab 4: Global Temp & Air Passengers"
+author: "Billy Dang"
+date: "2024-11-25"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## PSTAT 174/274 Fall 2024 – Lab Assignment 4
+
+### Part 1: Modeling Global Temperature 
+We are working with the gtemp_ocean data from the astsa package. The data is a measure of global mean ocean temperature deviations from 1850-2023. Our aim is to fit an appropriate ARIMA(p, d, q) model and to evaluate our model's performance using residual diagnostics before constructing a 20 year ahead forecast.
+
+1. Using the following code to load the data and produce a time series plot. Is the data stationary? Comment on any possible linear or seasonal trends and how best to remove them
+
+```{r}
+library(astsa)
+library(forecast)
+plot.ts(gtemp_ocean)
+```
+After plotting a time series graph of gtemp_ocean, we see an upward trend as time increases, suggesting that the data is in fact not stationary. We can difference the data in order to make the data stationary.
+
+2.  Difference the data lag 1 and produce a new time series plot. Does the data now appear stationary? 
+```{r}
+gtemp_ocean_diff <- diff(gtemp_ocean)
+
+plot.ts(gtemp_ocean_diff)
+```
+After using diff() to difference the data, it appears stationary as there is no clear trend, a lack of obvious seasonality, and seemingly constant mean and variance.
+
+3. Produce both an ACF and a PACF of the differenced data and comment on your observations. What potential ARIMA(p, d, q) models do they suggest? (Hint: Recall that the d parameter just indicates how many times we needed to differencing to obtain a stationary model.)
+```{r}
+acf(gtemp_ocean_diff, main = "ACF of Differenced Global Ocean Temp.")
+```
+```{r}
+pacf(gtemp_ocean_diff,main = "PACF of Differenced Global Ocean Temp.")
+```
+Given the significant lags of 1 and 2 within our ACF plot, and significant lags of 1, 2, and 3 in our PACF plot, the data suggests the implementation of an MA(2) model (as PACF is exponentially decaying to 0 and there are 2 sig. spikes in ACF). We'll plot this model below:
+
+```{r}
+#AR(0) & MA(3)
+arima_best <- auto.arima(gtemp_ocean_diff)
+arima_best
+
+```
+
+```{r}
+
+```
+```{r}
+residuals_arima_best <- residuals(arima_best)
+plot.ts(residuals_arima_best)
+
+```
+```{r}
+#testing that there is no autocorrelation remaining in residuals after fitting model
+Box.test(residuals(arima_best),type = "Ljung-Box")
+```
+4. This time use the sarima() function from the astsa package to fit your selected ARIMA model.
+
+```{r}
+sarima_model <- sarima(gtemp_ocean, p = 0, d = 1, q = 2)
+```
+
+5. Using our model, produce a 20 year ahead forecast for global temperature using sarima.for() function from the astsa package. Comment on your forecast.
+
+```{r}
+#producing a 20-year forecast
+sarima.for(gtemp_ocean, n.ahead = 20, p = 0, d = 1, q = 2)
+```
+The forecase predicts a rather linear upward trend in gtemp_ocean. The model is rather linear due to the MA(2) component that captures rahter short-term dependencies, smoothing out fluctuations in the forecast.
+
+#### Part 2: Modeling Airline Passengers
+For this part we'll analyze the AirPassengers dataset from the astsa package. The dataset contains monly totals of international airline passengers from 1949 to 1960 Our aim is to determine an appropriate model from the SARIMA family.
+
+1. Begin by producing a time series plot of the data using the plot.ts() function. Note your observations about any trends, seasonality and stationarity (is the variance constant?).
+
+```{r}
+plot.ts(AirPassengers)
+```
+After plotting the time series data, we see that the data is not stationary as there is evidence of seasonality (consistent swings within the data), an upward trend, as well as inconsistent variance as the size of those swings seem to be growing over time.
+
+2. We investigate possible transformations to obtain a stationary time series on which we can consider potential SARIMA models. Use the following codes to compute 3 transformed time series:
+  (1) log.data taking the natural log of the data;
+  (2) dlog.data taking the difference (lag 1) of the log data; and
+  (3) ddlog.data taking the difference (lag 12) of the differenced log data.
+Create a matrix of all four series called plot.data using the cbind() function and use plot.ts() to produce our combined plot
+  
+```{r}
+data = AirPassengers
+log_data = log(data)
+dlog_data = diff(log_data, lag = 1)
+ddlog_data = diff(dlog_data, lag = 12)
+```
+
+```{r}
+plot_data = cbind(Orig. = data,
+                  Log = log_data,
+                  LogDiff = dlog_data,
+                  LogDiff12 = ddlog_data)
+plot.ts(plot_data, main = "AirPassengers Data & Transformations",
+        col = 1:4,
+        ylab = "Value",
+        xlab = "Time")
+```
+3. We continue our data exploration by producing both an ACF and PACF plot for
+our twice differenced log data using the acf2() function. Note your observations
+about the significant spikes in autocorrelation and partial autocorrelation.
+
+```{r}
+acf2(ddlog_data, main = "ACF and PACF for Twice Differenced Log Air Passenger Data")
+```
+After plotting the ACF and PACF of our twice differenced log data, we see multiple significant spikes at lag 1, lag 12, lag 23, and lag 32. As for the PACF, we see 4 significant spikes as well, this time at lag 1, lag 3, lag 9, and lag 12. 
+
+4. Let us first consider a non-seasonal ARMA(1,1) model which we fit using the sarima() function (this time fitting the model to the twice differenced log data)
+
+```{r}
+sarima(ddlog_data, p = 1, d = 0, q = 1)
+```
+5. Use your ACF and PACF plot above to suggest possible parameters for the parameters SARIMA(p, d, q)(P, D, Q)s. Consider two potential models and fit each in turn using the sarima() function.
+
+```{r}
+#model 1
+sarima_model1 <- sarima(ddlog_data, p=0, d=0, q=1, P=0, D=0, Q=1, S=12)
+
+#model 2
+sarima_model2 <- sarima(ddlog_data, p=1, d=0, q=1, P=0, D=0, Q=1, S=12)
+
+```
+6. Produce a 24 month ahead forecast for our data using the sarima.for() function. Does our forecast appear reasonable?
+
+```{r}
+sarima.for(log_data, n.ahead=24, p=0, d=1, q=1, P=0, D=1, Q=1, S=12)
+```
+Our sarima model (using model 1) seems rather reasonable as it has been able to capture the upward trend and seasonality that is evident with past months/years of the time series.
+
